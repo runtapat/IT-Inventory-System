@@ -1,14 +1,16 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import Link from 'next/link'
-import { QRCodeSVG } from 'qrcode.react'
+import { AssetBarcode } from '@/components/AssetBarcode'
 import { Button, buttonVariants } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { ArrowLeft, Pencil, Loader2, QrCode } from 'lucide-react'
+import { ArrowLeft, Pencil, Loader2, Barcode as BarcodeIcon, Printer } from 'lucide-react'
+import { printBarcodeSticker } from '@/lib/print-barcode'
+import { QRCodeSVG } from 'qrcode.react'
 import { format } from 'date-fns'
 import { th } from 'date-fns/locale'
 import { AssetStatus, Lifecycle, Availability } from '@prisma/client'
@@ -97,6 +99,8 @@ export function AssetDetailClient({ assetId }: { assetId: string }) {
   const [asset, setAsset] = useState<AssetDetail | null>(null)
   const [loading, setLoading] = useState(true)
   const [auditLogs, setAuditLogs] = useState<AuditEntry[]>([])
+  const barcodeRef = useRef<HTMLDivElement>(null)
+  const qrRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     fetch(`/api/assets/${assetId}`)
@@ -141,7 +145,7 @@ export function AssetDetailClient({ assetId }: { assetId: string }) {
           <TabsTrigger value="info">ข้อมูลทั่วไป</TabsTrigger>
           <TabsTrigger value="maintenance">ประวัติซ่อม</TabsTrigger>
           <TabsTrigger value="history" onClick={loadAuditLogs}>ประวัติการแก้ไข</TabsTrigger>
-          <TabsTrigger value="qr">QR Code</TabsTrigger>
+          <TabsTrigger value="qr">Barcode</TabsTrigger>
         </TabsList>
 
         <TabsContent value="info" className="space-y-4">
@@ -283,18 +287,37 @@ export function AssetDetailClient({ assetId }: { assetId: string }) {
 
         <TabsContent value="qr">
           <Card>
-            <CardHeader><CardTitle className="text-base flex items-center gap-2"><QrCode className="h-4 w-4" />QR Code</CardTitle></CardHeader>
+            <CardHeader><CardTitle className="text-base flex items-center gap-2"><BarcodeIcon className="h-4 w-4" />Barcode</CardTitle></CardHeader>
             <CardContent className="flex flex-col items-center gap-4">
-              <QRCodeSVG value={assetUrl} size={200} />
-              <div id="qr-print-area" className="flex flex-col items-center gap-3 p-4 border rounded-lg bg-white">
-                <QRCodeSVG value={assetUrl} size={180} />
-                <div className="text-center">
-                  <p className="font-mono font-bold text-lg tracking-wider">{asset.assetId}</p>
-                  <p className="text-sm text-muted-foreground max-w-[200px] truncate">{asset.name}</p>
-                  {asset.location && <p className="text-xs text-muted-foreground">{asset.location.name}</p>}
+              <div className="flex flex-col items-center gap-3 p-4 border rounded-lg bg-white min-w-[300px] w-full max-w-sm">
+                <div ref={barcodeRef} className="flex justify-center w-full">
+                  <AssetBarcode value={asset.assetId} width={2.2} height={80} />
+                </div>
+                <div className="flex items-center gap-3 w-full">
+                  <div ref={qrRef} className="shrink-0">
+                    <QRCodeSVG value={assetUrl} size={72} bgColor="#ffffff" fgColor="#000000" level="M" />
+                  </div>
+                  <div className="min-w-0">
+                    <p className="font-mono font-bold text-xl tracking-wider">{asset.assetId}</p>
+                    <p className="text-sm text-muted-foreground truncate max-w-[180px]">{asset.name}</p>
+                    {asset.location && <p className="text-xs text-muted-foreground">{asset.location.name}</p>}
+                  </div>
                 </div>
               </div>
-              <Button variant="outline" onClick={() => window.print()}>🖨️ พิมพ์ Sticker</Button>
+              <Button variant="outline" onClick={() => {
+                const barcodeSvg = barcodeRef.current?.querySelector('svg')
+                const qrSvg = qrRef.current?.querySelector('svg')
+                if (!barcodeSvg) return
+                printBarcodeSticker({
+                  assetCode: asset.assetId,
+                  name: asset.name,
+                  location: asset.location?.name,
+                  svgMarkup: barcodeSvg.outerHTML,
+                  qrSvgMarkup: qrSvg?.outerHTML ?? null,
+                })
+              }}>
+                <Printer className="h-4 w-4 mr-2" />พิมพ์ Sticker
+              </Button>
             </CardContent>
           </Card>
         </TabsContent>

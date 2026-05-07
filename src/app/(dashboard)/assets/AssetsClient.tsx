@@ -9,10 +9,11 @@ import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Plus, Search, Loader2, Eye, Trash2, Download } from 'lucide-react'
+import { Plus, Search, Loader2, Eye, Trash2, Download, Barcode as BarcodeIcon, ScanLine } from 'lucide-react'
 import { AssetStatus, Lifecycle, Availability } from '@prisma/client'
 import * as XLSX from 'xlsx'
 import { format } from 'date-fns'
+import { QRPrintModal } from '@/components/QRPrintModal'
 
 const STATUS_LABELS: Record<AssetStatus, string> = {
   ACTIVE: 'Active',
@@ -84,6 +85,7 @@ export function AssetsClient() {
   const [status, setStatus] = useState('all')
   const [categories, setCategories] = useState<Category[]>([])
   const [locations, setLocations] = useState<Location[]>([])
+  const [qrAsset, setQrAsset] = useState<Asset | null>(null)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -146,7 +148,8 @@ export function AssetsClient() {
           <h2 className="text-lg font-semibold">อุปกรณ์ทั้งหมด</h2>
           <p className="text-sm text-muted-foreground">{total} รายการ</p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex gap-2 flex-wrap">
+          <Link href="/scan" className={cn(buttonVariants({ variant: 'outline' }))}><ScanLine className="h-4 w-4 mr-2" />สแกน</Link>
           <Button variant="outline" onClick={exportExcel}><Download className="h-4 w-4 mr-2" />Export</Button>
           <Link href="/assets/new" className={cn(buttonVariants())}><Plus className="h-4 w-4 mr-2" />เพิ่มอุปกรณ์</Link>
         </div>
@@ -228,8 +231,9 @@ export function AssetsClient() {
                 </TableCell>
                 <TableCell>
                   <div className="flex gap-1">
-                    <Link href={`/assets/${asset.id}`} className={cn(buttonVariants({ variant: 'ghost', size: 'icon' }))}><Eye className="h-4 w-4" /></Link>
-                    <Button variant="ghost" size="icon" className="text-red-500" onClick={() => handleDelete(asset)}><Trash2 className="h-4 w-4" /></Button>
+                    <Link href={`/assets/${asset.id}`} className={cn(buttonVariants({ variant: 'ghost', size: 'icon' }))} title="ดูรายละเอียด"><Eye className="h-4 w-4" /></Link>
+                    <Button variant="ghost" size="icon" onClick={() => setQrAsset(asset)} title="พิมพ์ Barcode"><BarcodeIcon className="h-4 w-4" /></Button>
+                    <Button variant="ghost" size="icon" className="text-red-500" onClick={() => handleDelete(asset)} title="ลบ"><Trash2 className="h-4 w-4" /></Button>
                   </div>
                 </TableCell>
               </TableRow>
@@ -247,6 +251,17 @@ export function AssetsClient() {
             <Button variant="outline" size="sm" disabled={page >= totalPages} onClick={() => setPage(p => p + 1)}>ถัดไป</Button>
           </div>
         </div>
+      )}
+
+      {qrAsset && (
+        <QRPrintModal
+          open={!!qrAsset}
+          onClose={() => setQrAsset(null)}
+          assetId={qrAsset.id}
+          assetCode={qrAsset.assetId}
+          name={qrAsset.name}
+          location={qrAsset.location?.name}
+        />
       )}
     </>
   )

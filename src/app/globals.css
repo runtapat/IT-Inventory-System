@@ -129,18 +129,3 @@
   }
 }
 
-/* QR Code sticker print styles */
-@media print {
-  body > * { display: none !important; }
-  #qr-print-area {
-    display: flex !important;
-    flex-direction: column;
-    align-items: center;
-    gap: 8px;
-    padding: 16px;
-    border: 1px solid #000;
-    width: fit-content;
-    margin: 20px auto;
-    font-family: monospace;
-  }
-}

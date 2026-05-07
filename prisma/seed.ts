@@ -30,9 +30,9 @@ async function main() {
   }
 
   const locations = [
-    { code: 'HQ-01', name: 'สำนักงานใหญ่ - ชั้นหลัก', building: 'HQ' },
-    { code: 'HQ-02', name: 'สำนักงานใหญ่ - ห้อง Server', building: 'HQ', room: 'Server Room' },
-    { code: 'BR-01', name: 'สาขา 1' },
+    { code: 'OFF-01', name: 'สำนักงาน - พื้นที่ทำงานหลัก', building: 'Office' },
+    { code: 'SRV-RM', name: 'ห้อง Server', building: 'Office', room: 'Server Room' },
+    { code: 'STG-01', name: 'ห้องเก็บอุปกรณ์', building: 'Office', room: 'Storage' },
   ]
 
   for (const loc of locations) {
