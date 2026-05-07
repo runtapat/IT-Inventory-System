@@ -1,0 +1,42 @@
+{
+  "permissions": {
+    "defaultMode": "acceptEdits",
+    "allow": [
+      "Read",
+      "Edit",
+      "Write",
+      "Glob",
+      "Grep",
+      "WebSearch",
+      "Bash(npm *)",
+      "Bash(npx *)",
+      "Bash(pnpm *)",
+      "Bash(node *)",
+      "Bash(git *)",
+      "Bash(ls *)",
+      "Bash(mkdir *)",
+      "Bash(cat *)",
+      "Bash(echo *)",
+      "Bash(rm *)",
+      "Bash(cp *)",
+      "Bash(mv *)",
+      "Bash(pwd)",
+      "Bash(which *)",
+      "Bash(next *)",
+      "Bash(prisma *)",
+      "Bash(tsc *)",
+      "Bash(eslint *)",
+      "Bash(python *)",
+      "Bash(pip *)",
+      "PowerShell(*)",
+      "Bash(curl *)",
+      "Bash(netstat *)",
+      "Bash(tasklist)",
+      "Bash(taskkill *)",
+      "Bash(cmd *)"
+    ],
+    "additionalDirectories": [
+      "D:\\IT-Inventory-System"
+    ]
+  }
+}

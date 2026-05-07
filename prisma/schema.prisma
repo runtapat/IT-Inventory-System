@@ -1,0 +1,280 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ═══════════════════════════════════════════════════
+// USER & ROLE
+// ═══════════════════════════════════════════════════
+
+enum Role {
+  ADMIN
+  EDITOR
+  VIEWER
+}
+
+model User {
+  id        String   @id @default(uuid())
+  email     String   @unique
+  name      String
+  role      Role     @default(VIEWER)
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  assignedAssets  Asset[]          @relation("AssignedTo")
+  createdAssets   Asset[]          @relation("CreatedBy")
+  updatedAssets   Asset[]          @relation("UpdatedBy")
+  auditLogs       AuditLog[]
+  maintenanceLogs MaintenanceLog[]
+
+  @@map("users")
+}
+
+// ═══════════════════════════════════════════════════
+// CATEGORY (ประเภทอุปกรณ์ เช่น SRV, NET, PC)
+// ═══════════════════════════════════════════════════
+
+model Category {
+  id               String   @id @default(uuid())
+  prefix           String   @unique @db.VarChar(3) // เช่น SRV, NET, PC (ขยายเป็น 3 ตัวรองรับ SRV)
+  name             String   @unique
+  description      String?
+  currentRunningNo Int      @default(0)
+  isActive         Boolean  @default(true)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  assets Asset[]
+
+  @@map("categories")
+}
+
+// ═══════════════════════════════════════════════════
+// LOCATION (สถานที่/ห้อง)
+// ═══════════════════════════════════════════════════
+
+model Location {
+  id          String   @id @default(uuid())
+  code        String   @unique
+  name        String
+  address     String?
+  building    String?
+  floor       String?
+  room        String?
+  description String?
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  assets Asset[]
+
+  @@map("locations")
+}
+
+// ═══════════════════════════════════════════════════
+// VENDOR (ผู้จำหน่าย)
+// ═══════════════════════════════════════════════════
+
+model Vendor {
+  id          String   @id @default(uuid())
+  name        String   @unique
+  contactName String?
+  phone       String?
+  email       String?
+  address     String?
+  note        String?
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  assets Asset[]
+
+  @@map("vendors")
+}
+
+// ═══════════════════════════════════════════════════
+// ASSET (อุปกรณ์) - ตารางหลัก
+// ═══════════════════════════════════════════════════
+
+// สถานะหลักของอุปกรณ์
+enum AssetStatus {
+  ACTIVE       // ใช้งานอยู่ (Active)
+  MAINTENANCE  // อยู่ระหว่างซ่อมบำรุง (Maintenance)
+  RETIRED      // ปลดระวางแล้ว (Retired)
+}
+
+// วงจรชีวิตของอุปกรณ์
+enum Lifecycle {
+  IN_OPERATION       // In Operation
+  UNDER_MAINTENANCE  // Under Maintenance
+  DECOMMISSIONED     // Decommissioned
+}
+
+// ความพร้อมใช้งาน
+enum Availability {
+  AVAILABLE  // Available
+  DEGRADED   // Degraded
+  NA         // N/A
+}
+
+model Asset {
+  id      String @id @default(uuid())
+  assetId String @unique // Auto-generated: SRV-001, NET-001
+
+  categoryId String
+  category   Category @relation(fields: [categoryId], references: [id])
+
+  name         String
+  brand        String?
+  model        String?
+  serialNumber String? @unique
+
+  // วันที่สำคัญ
+  purchaseDate   DateTime? // วันที่ซื้อ
+  installDate    DateTime? // วันที่ติดตั้ง
+  warrantyExpire DateTime? // warranty หมดอายุ
+  eolYear        Int?      // End of Life (ปี เช่น 2028)
+
+  price    Decimal? @db.Decimal(12, 2)
+  poNumber String?
+
+  vendorId String?
+  vendor   Vendor? @relation(fields: [vendorId], references: [id])
+
+  locationId     String?
+  location       Location? @relation(fields: [locationId], references: [id])
+  locationDetail String?
+
+  assignedToId String?
+  assignedTo   User?     @relation("AssignedTo", fields: [assignedToId], references: [id])
+  assignedDate DateTime?
+
+  // สถานะ 3 มิติตามรูป
+  status       AssetStatus  @default(ACTIVE)
+  lifecycle    Lifecycle    @default(IN_OPERATION)
+  availability Availability @default(AVAILABLE)
+
+  note     String? @db.Text
+  qrCode   String?
+  imageUrl String?
+
+  isDeleted Boolean   @default(false)
+  deletedAt DateTime?
+
+  createdById String?
+  createdBy   User?    @relation("CreatedBy", fields: [createdById], references: [id])
+  createdAt   DateTime @default(now())
+  updatedById String?
+  updatedBy   User?    @relation("UpdatedBy", fields: [updatedById], references: [id])
+  updatedAt   DateTime @updatedAt
+
+  attachments     Attachment[]
+  maintenanceLogs MaintenanceLog[]
+  transferLogs    TransferLog[]
+
+  @@index([categoryId])
+  @@index([locationId])
+  @@index([status])
+  @@index([lifecycle])
+  @@index([availability])
+  @@index([isDeleted])
+  @@map("assets")
+}
+
+// ═══════════════════════════════════════════════════
+// ATTACHMENT (ไฟล์แนบ)
+// ═══════════════════════════════════════════════════
+
+model Attachment {
+  id         String   @id @default(uuid())
+  assetId    String
+  asset      Asset    @relation(fields: [assetId], references: [id], onDelete: Cascade)
+  fileName   String
+  fileUrl    String
+  fileType   String
+  fileSize   Int
+  uploadedBy String?
+  createdAt  DateTime @default(now())
+
+  @@index([assetId])
+  @@map("attachments")
+}
+
+// ═══════════════════════════════════════════════════
+// MAINTENANCE LOG (ประวัติการซ่อม/บำรุง)
+// ═══════════════════════════════════════════════════
+
+enum MaintenanceType {
+  PREVENTIVE
+  REPAIR
+  UPGRADE
+  INSPECTION
+}
+
+model MaintenanceLog {
+  id            String          @id @default(uuid())
+  assetId       String
+  asset         Asset           @relation(fields: [assetId], references: [id])
+  type          MaintenanceType
+  description   String          @db.Text
+  cost          Decimal?        @db.Decimal(12, 2)
+  performedBy   String?
+  performedDate DateTime
+  nextDueDate   DateTime?
+
+  technicianId String?
+  technician   User?   @relation(fields: [technicianId], references: [id])
+
+  createdAt DateTime @default(now())
+
+  @@index([assetId])
+  @@map("maintenance_logs")
+}
+
+// ═══════════════════════════════════════════════════
+// TRANSFER LOG (ประวัติการโอนย้าย)
+// ═══════════════════════════════════════════════════
+
+model TransferLog {
+  id           String   @id @default(uuid())
+  assetId      String
+  asset        Asset    @relation(fields: [assetId], references: [id])
+  fromUser     String?
+  toUser       String?
+  fromLocation String?
+  toLocation   String?
+  reason       String?
+  transferDate DateTime @default(now())
+  performedBy  String?
+  createdAt    DateTime @default(now())
+
+  @@index([assetId])
+  @@map("transfer_logs")
+}
+
+// ═══════════════════════════════════════════════════
+// AUDIT LOG
+// ═══════════════════════════════════════════════════
+
+model AuditLog {
+  id         String   @id @default(uuid())
+  userId     String?
+  user       User?    @relation(fields: [userId], references: [id])
+  action     String
+  entityType String
+  entityId   String
+  oldValue   Json?
+  newValue   Json?
+  ipAddress  String?
+  userAgent  String?
+  createdAt  DateTime @default(now())
+
+  @@index([entityType, entityId])
+  @@index([userId])
+  @@index([createdAt])
+  @@map("audit_logs")
+}
