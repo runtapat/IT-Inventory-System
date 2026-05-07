@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useRef } from 'react'
 import Link from 'next/link'
 import { toast } from 'sonner'
 import { Button, buttonVariants } from '@/components/ui/button'
@@ -9,11 +9,14 @@ import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Plus, Search, Loader2, Eye, Trash2, Download, Barcode as BarcodeIcon, ScanLine } from 'lucide-react'
+import { Plus, Search, Loader2, Eye, Trash2, Download, Barcode as BarcodeIcon, ScanLine, Printer, X } from 'lucide-react'
 import { AssetStatus, Lifecycle, Availability } from '@prisma/client'
 import * as XLSX from 'xlsx'
 import { format } from 'date-fns'
 import { QRPrintModal } from '@/components/QRPrintModal'
+import { AssetBarcode } from '@/components/AssetBarcode'
+import { QRCodeSVG } from 'qrcode.react'
+import { printMultiStickers } from '@/lib/print-multi-stickers'
 
 const STATUS_LABELS: Record<AssetStatus, string> = {
   ACTIVE: 'Active',
@@ -86,6 +89,57 @@ export function AssetsClient() {
   const [categories, setCategories] = useState<Category[]>([])
   const [locations, setLocations] = useState<Location[]>([])
   const [qrAsset, setQrAsset] = useState<Asset | null>(null)
+  const [selected, setSelected] = useState<Set<string>>(new Set())
+  const printContainerRef = useRef<HTMLDivElement>(null)
+
+  function toggleSelect(id: string) {
+    setSelected(prev => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
+  function toggleSelectAll() {
+    setSelected(prev => prev.size === assets.length ? new Set() : new Set(assets.map(a => a.id)))
+  }
+  function clearSelection() { setSelected(new Set()) }
+
+  function handlePrintSelected() {
+    const selectedAssets = assets.filter(a => selected.has(a.id))
+    if (selectedAssets.length === 0) return
+    const container = printContainerRef.current
+    if (!container) return
+    const stickers = selectedAssets.map(asset => {
+      const node = container.querySelector(`[data-print-id="${asset.id}"]`)
+      const svgs = node?.querySelectorAll('svg') ?? []
+      const barcodeSvg = svgs[0]?.outerHTML ?? ''
+      const qrSvg = svgs[1]?.outerHTML ?? null
+      return {
+        assetCode: asset.assetId,
+        name: asset.name,
+        location: asset.location?.name,
+        barcodeSvg,
+        qrSvg,
+      }
+    })
+    printMultiStickers(stickers)
+  }
+
+  async function handleBulkDelete() {
+    if (selected.size === 0) return
+    if (!confirm(`ลบอุปกรณ์ ${selected.size} รายการที่เลือก ใช่หรือไม่?`)) return
+    const ids = [...selected]
+    let ok = 0, fail = 0
+    for (const id of ids) {
+      const res = await fetch(`/api/assets/${id}`, { method: 'DELETE' })
+      if (res.ok) ok++; else fail++
+    }
+    if (ok) toast.success(`ลบสำเร็จ ${ok} รายการ`)
+    if (fail) toast.error(`ลบไม่สำเร็จ ${fail} รายการ`)
+    clearSelection()
+    load()
+  }
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -155,28 +209,56 @@ export function AssetsClient() {
         </div>
       </div>
 
+      {/* Bulk action bar */}
+      {selected.size > 0 && (
+        <div className="flex flex-wrap items-center gap-2 mb-3 p-3 rounded-lg border bg-blue-50 dark:bg-blue-950/40 border-blue-200 dark:border-blue-900">
+          <Button variant="ghost" size="icon" className="h-7 w-7" onClick={clearSelection} title="ยกเลิก"><X className="h-4 w-4" /></Button>
+          <span className="text-sm font-medium">เลือก {selected.size} รายการ</span>
+          <div className="ml-auto flex gap-2">
+            <Button size="sm" variant="outline" onClick={handlePrintSelected}>
+              <Printer className="h-4 w-4 mr-1" />พิมพ์ Sticker
+            </Button>
+            <Button size="sm" variant="outline" className="text-red-600 hover:text-red-700" onClick={handleBulkDelete}>
+              <Trash2 className="h-4 w-4 mr-1" />ลบ
+            </Button>
+          </div>
+        </div>
+      )}
+
       {/* Filters */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 mb-4">
-        <div className="relative">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-3 mb-4">
+        <div className="relative sm:col-span-2 lg:col-span-1">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input placeholder="ค้นหา..." className="pl-9" value={search} onChange={e => { setSearch(e.target.value); setPage(1) }} />
         </div>
         <Select value={categoryId} onValueChange={v => { setCategoryId(v ?? 'all'); setPage(1) }}>
-          <SelectTrigger><SelectValue placeholder="ประเภทอุปกรณ์" /></SelectTrigger>
+          <SelectTrigger className="w-full">
+            <SelectValue placeholder="ประเภทอุปกรณ์">
+              {categoryId === 'all' ? 'ทุกประเภท' : (categories.find(c => c.id === categoryId)?.name ?? 'ประเภทอุปกรณ์')}
+            </SelectValue>
+          </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">ทุกประเภท</SelectItem>
             {categories.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
           </SelectContent>
         </Select>
         <Select value={locationId} onValueChange={v => { setLocationId(v ?? 'all'); setPage(1) }}>
-          <SelectTrigger><SelectValue placeholder="สถานที่" /></SelectTrigger>
+          <SelectTrigger className="w-full">
+            <SelectValue placeholder="สถานที่">
+              {locationId === 'all' ? 'ทุกสถานที่' : (locations.find(l => l.id === locationId)?.name ?? 'สถานที่')}
+            </SelectValue>
+          </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">ทุกสถานที่</SelectItem>
             {locations.map(l => <SelectItem key={l.id} value={l.id}>{l.name}</SelectItem>)}
           </SelectContent>
         </Select>
         <Select value={status} onValueChange={v => { setStatus(v ?? 'all'); setPage(1) }}>
-          <SelectTrigger><SelectValue placeholder="สถานะ" /></SelectTrigger>
+          <SelectTrigger className="w-full">
+            <SelectValue placeholder="สถานะ">
+              {status === 'all' ? 'ทุกสถานะ' : (STATUS_LABELS[status as AssetStatus] ?? 'สถานะ')}
+            </SelectValue>
+          </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">ทุกสถานะ</SelectItem>
             {Object.entries(STATUS_LABELS).map(([k, v]) => <SelectItem key={k} value={k}>{v}</SelectItem>)}
@@ -184,10 +266,65 @@ export function AssetsClient() {
         </Select>
       </div>
 
-      <div className="rounded-lg border overflow-x-auto">
+      {/* Mobile: card view */}
+      <div className="md:hidden space-y-2">
+        {loading ? (
+          <div className="flex justify-center py-10"><Loader2 className="h-6 w-6 animate-spin" /></div>
+        ) : assets.length === 0 ? (
+          <div className="text-center py-10 text-sm text-muted-foreground border rounded-lg">ไม่พบข้อมูลอุปกรณ์</div>
+        ) : assets.map(asset => (
+          <div key={asset.id} className={cn("border rounded-lg p-3 bg-card", selected.has(asset.id) && "ring-2 ring-blue-500")}>
+            <div className="flex items-start justify-between gap-2">
+              <input
+                type="checkbox"
+                className="mt-1 h-4 w-4 shrink-0 rounded border-input accent-blue-600"
+                checked={selected.has(asset.id)}
+                onChange={() => toggleSelect(asset.id)}
+                onClick={e => e.stopPropagation()}
+              />
+              <Link href={`/assets/${asset.id}`} className="min-w-0 flex-1">
+                <div className="flex items-center gap-2 mb-1">
+                  <Badge variant="outline" className="font-mono text-xs">{asset.assetId}</Badge>
+                  <span className={`px-2 py-0.5 rounded-full text-[10px] font-medium ${STATUS_COLORS[asset.status]}`}>
+                    {STATUS_LABELS[asset.status]}
+                  </span>
+                </div>
+                <div className="font-medium text-sm truncate">{asset.name}</div>
+                <div className="text-xs text-muted-foreground truncate">
+                  {[asset.brand, asset.model].filter(Boolean).join(' ') || asset.category.name}
+                </div>
+                <div className="flex flex-wrap gap-x-3 gap-y-1 mt-2 text-[11px] text-muted-foreground">
+                  <span>{asset.category.name}</span>
+                  {asset.location && <span>• {asset.location.name}</span>}
+                  {asset.warrantyExpire && <span>• Warranty: {fmtDate(asset.warrantyExpire)}</span>}
+                </div>
+              </Link>
+              <div className="flex flex-col gap-1 shrink-0">
+                <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setQrAsset(asset)} title="พิมพ์ Barcode">
+                  <BarcodeIcon className="h-4 w-4" />
+                </Button>
+                <Button variant="ghost" size="icon" className="h-8 w-8 text-red-500" onClick={() => handleDelete(asset)} title="ลบ">
+                  <Trash2 className="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* Desktop: table view */}
+      <div className="hidden md:block rounded-lg border overflow-x-auto">
         <Table>
           <TableHeader>
             <TableRow>
+              <TableHead className="w-10">
+                <input
+                  type="checkbox"
+                  className="h-4 w-4 rounded border-input accent-blue-600"
+                  checked={assets.length > 0 && selected.size === assets.length}
+                  onChange={toggleSelectAll}
+                />
+              </TableHead>
               <TableHead className="whitespace-nowrap">Asset ID</TableHead>
               <TableHead>ชื่ออุปกรณ์</TableHead>
               <TableHead>ประเภท</TableHead>
@@ -203,11 +340,19 @@ export function AssetsClient() {
           </TableHeader>
           <TableBody>
             {loading ? (
-              <TableRow><TableCell colSpan={11} className="text-center py-8"><Loader2 className="h-6 w-6 animate-spin mx-auto" /></TableCell></TableRow>
+              <TableRow><TableCell colSpan={12} className="text-center py-8"><Loader2 className="h-6 w-6 animate-spin mx-auto" /></TableCell></TableRow>
             ) : assets.length === 0 ? (
-              <TableRow><TableCell colSpan={11} className="text-center py-8 text-muted-foreground">ไม่พบข้อมูลอุปกรณ์</TableCell></TableRow>
+              <TableRow><TableCell colSpan={12} className="text-center py-8 text-muted-foreground">ไม่พบข้อมูลอุปกรณ์</TableCell></TableRow>
             ) : assets.map(asset => (
-              <TableRow key={asset.id}>
+              <TableRow key={asset.id} className={cn(selected.has(asset.id) && "bg-blue-50/50 dark:bg-blue-950/20")}>
+                <TableCell>
+                  <input
+                    type="checkbox"
+                    className="h-4 w-4 rounded border-input accent-blue-600"
+                    checked={selected.has(asset.id)}
+                    onChange={() => toggleSelect(asset.id)}
+                  />
+                </TableCell>
                 <TableCell><Badge variant="outline" className="font-mono">{asset.assetId}</Badge></TableCell>
                 <TableCell>
                   <div className="font-medium whitespace-nowrap">{asset.name}</div>
@@ -263,6 +408,16 @@ export function AssetsClient() {
           location={qrAsset.location?.name}
         />
       )}
+
+      {/* Hidden render container for capturing barcode/QR SVGs of selected assets */}
+      <div ref={printContainerRef} aria-hidden className="fixed -left-[9999px] top-0 pointer-events-none">
+        {assets.filter(a => selected.has(a.id)).map(a => (
+          <div key={a.id} data-print-id={a.id} className="bg-white">
+            <AssetBarcode value={a.assetId} width={2} height={60} />
+            <QRCodeSVG value={typeof window !== 'undefined' ? `${window.location.origin}/assets/${a.id}` : `/assets/${a.id}`} size={56} bgColor="#ffffff" fgColor="#000000" level="M" />
+          </div>
+        ))}
+      </div>
     </>
   )
 }

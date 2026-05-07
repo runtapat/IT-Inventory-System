@@ -13,6 +13,7 @@ import {
   X,
   Package,
   ScanLine,
+  Activity,
 } from 'lucide-react'
 import { useState, useEffect } from 'react'
 import { cn } from '@/lib/utils'
@@ -25,6 +26,7 @@ const navItems = [
   { href: '/', label: 'Dashboard', icon: LayoutDashboard },
   { href: '/assets', label: 'อุปกรณ์', icon: Monitor },
   { href: '/scan', label: 'สแกน Barcode', icon: ScanLine },
+  { href: '/activity', label: 'ความเคลื่อนไหว', icon: Activity },
   { href: '/categories', label: 'ประเภทอุปกรณ์', icon: Tag },
   { href: '/locations', label: 'สถานที่', icon: MapPin },
   { href: '/users', label: 'ผู้ใช้งาน', icon: Users },

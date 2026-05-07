@@ -14,7 +14,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { Plus, Pencil, Trash2, Loader2 } from 'lucide-react'
 
 const schema = z.object({
-  prefix: z.string().length(2).regex(/^[A-Z]{2}$/, 'ต้องเป็นตัวพิมพ์ใหญ่ A-Z 2 ตัว'),
+  prefix: z.string().min(2).max(3).regex(/^[A-Z]{2,3}$/, 'ต้องเป็นตัวพิมพ์ใหญ่ A-Z 2-3 ตัว'),
   name: z.string().min(1, 'กรุณาระบุชื่อ'),
   description: z.string().optional(),
 })
@@ -171,8 +171,11 @@ export function CategoriesClient() {
           </DialogHeader>
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
             <div className="space-y-2">
-              <Label>Prefix (2 ตัวอักษร A-Z)</Label>
-              <Input placeholder="เช่น NW, SV, PC" className="uppercase" {...register('prefix')} onChange={e => { e.target.value = e.target.value.toUpperCase(); register('prefix').onChange(e) }} />
+              <Label>Prefix (2-3 ตัวอักษร A-Z)</Label>
+              <Input placeholder="เช่น NW, SV, PC, SRV" maxLength={3} className="uppercase" {...register('prefix')} onChange={e => { e.target.value = e.target.value.toUpperCase(); register('prefix').onChange(e) }} />
+              {editing && editing._count.assets > 0 && (
+                <p className="text-xs text-amber-600">⚠ การเปลี่ยน Prefix จะอัปเดต Asset ID ของอุปกรณ์ {editing._count.assets} รายการในประเภทนี้ทั้งหมด</p>
+              )}
               {errors.prefix && <p className="text-sm text-red-500">{errors.prefix.message}</p>}
             </div>
             <div className="space-y-2">

@@ -123,9 +123,26 @@
   }
   body {
     @apply bg-background text-foreground;
+    user-select: none;
+    cursor: default;
   }
   html {
     @apply font-sans;
+  }
+
+  /* Allow text selection and pointer cursor only in text inputs */
+  input[type="text"],
+  input[type="email"],
+  input[type="password"],
+  input[type="search"],
+  input[type="number"],
+  input[type="tel"],
+  input[type="url"],
+  input:not([type]),
+  textarea,
+  [contenteditable="true"] {
+    user-select: text;
+    cursor: text;
   }
 }
 

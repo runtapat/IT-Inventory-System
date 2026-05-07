@@ -3,7 +3,7 @@ import { prisma } from '@/lib/prisma'
 import { z } from 'zod'
 
 const categorySchema = z.object({
-  prefix: z.string().length(2).regex(/^[A-Z]{2}$/, 'ต้องเป็นตัวพิมพ์ใหญ่ A-Z 2 ตัว'),
+  prefix: z.string().min(2).max(3).regex(/^[A-Z]{2,3}$/, 'ต้องเป็นตัวพิมพ์ใหญ่ A-Z 2-3 ตัว'),
   name: z.string().min(1, 'กรุณาระบุชื่อประเภท'),
   description: z.string().optional(),
 })
